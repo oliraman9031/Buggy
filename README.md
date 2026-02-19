@@ -1,180 +1,161 @@
-# 🚗 Line Following & Gantry Detection Robot – Arduino Project
+write readme for this code const int trigPin = 13;
+const int echoPin = 12;
+const int pin = 4;
+long duration;
+int distanceCm, distanceInch;
 
-## 📌 Overview
+void setup() {
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  for (int i = 5; i < 9; i++) {
+    pinMode(i, OUTPUT);
+  }
+  pinMode(A0, INPUT);
+  pinMode(A1, INPUT);
+  Serial.begin(9600);
+}
 
-This project implements an **autonomous robot** using an Arduino board. The robot:
+long st = millis();
+int count = 0;
+int flag = 0;
 
-* Detects and counts **gantry crossings** using a pulse signal.
-* Uses an **ultrasonic sensor** for obstacle detection.
-* Uses **two IR sensors (A0 & A1)** for line following.
-* Controls movement using a **motor driver (pins 5–8)**.
-* Starts operation when it receives `'C'` from Serial Monitor.
+void stopp() {
+  digitalWrite(5, LOW);
+  digitalWrite(8, LOW);
+  digitalWrite(6, LOW);
+  digitalWrite(7, LOW);
+}
 
----
+void forward() {
+  digitalWrite(5, HIGH);
+  digitalWrite(8, HIGH);
+  digitalWrite(6, LOW);
+  digitalWrite(7, LOW);
+}
 
-## 🧰 Hardware Requirements
+void backward() {
+  digitalWrite(6, HIGH);
+  digitalWrite(7, HIGH);
+  digitalWrite(5, LOW);
+  digitalWrite(8, LOW);
+}
 
-* Arduino Board (e.g., **Arduino Uno**)
-* Ultrasonic Sensor (e.g., **HC-SR04**)
-* Motor Driver (e.g., **L298N**)
-* 2 × IR Sensors (Line detection)
-* DC Motors
-* Power supply
-* Connecting wires
+void left() {
+  digitalWrite(6, LOW);
+  digitalWrite(7, LOW);
+  digitalWrite(5, HIGH);
+  digitalWrite(8, LOW);
+}
 
----
+void right() {
+  digitalWrite(6, LOW);
+  digitalWrite(7, LOW);
+  digitalWrite(5, LOW);
+  digitalWrite(8, HIGH);
+}
 
-## 🔌 Pin Configuration
+void clockwise() {
+  digitalWrite(6, HIGH);
+  digitalWrite(7, LOW);
+  digitalWrite(5, LOW);
+  digitalWrite(8, HIGH);
+}
 
-| Component           | Arduino Pin |
-| ------------------- | ----------- |
-| Ultrasonic TRIG     | 13          |
-| Ultrasonic ECHO     | 12          |
-| Gantry Input Signal | 4           |
-| Motor Control Pins  | 5, 6, 7, 8  |
-| Left IR Sensor      | A0          |
-| Right IR Sensor     | A1          |
+void counterclockwise() {
+  digitalWrite(6, LOW);
+  digitalWrite(7, HIGH);
+  digitalWrite(5, HIGH);
+  digitalWrite(8, LOW);
+}
 
----
+void loop() {
+  if (digitalRead(pin) > 0) {
+    int value = pulseIn(pin, HIGH);
+    Serial.print("Value =");
+    Serial.println(value);
 
-## ⚙️ How It Works
+    if (value > 3200 && value < 3700) {}
+    Serial.println("Gantry 2 Crossed");
+    stopp();
+    delay(1000);
 
-### 1️⃣ Gantry Detection (Pin 4)
+    if (value > 2500 && value < 3000)
+      Serial.println("Gantry 3 Crossed");
+    stopp();
+    delay(1000);
 
-* Reads pulse width using `pulseIn()`.
-* Depending on pulse value, it identifies:
+    if (value > 500 && value < 1000) {
+      Serial.println("Gantry 1 Crossed");
+      stopp();
+      delay(1000);
+    }
+  }
 
-  * **500–1000** → Gantry 1 Crossed
-  * **2500–3000** → Gantry 3 Crossed
-  * **3200–3700** → Gantry 2 Crossed
-* Stops for 1 second after detection.
+  if (Serial.read() == 'C' || flag == 1) {
+    flag = 1;
+    int s = 0;
 
----
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
 
-### 2️⃣ Start Condition
+    duration = pulseIn(echoPin, HIGH);
+    distanceCm = (duration * 0.034) / 2;
+    distanceInch = (duration * 0.0133) / 2;
 
-Robot starts when:
+    if (distanceCm > 10) {
+      int r = digitalRead(A0);
+      int l = digitalRead(A1);
 
-```cpp
-Serial.read() == 'C'
-```
+      if (l == 1 && r == 1)
+        forward();
+      else if (l == 1 && r == 0)
+        left();
+      else if (l == 0 && r == 1)
+        right();
+      else {
+        long endt = millis();
+        if (endt - st > 1000) {
+          count++;
+          Serial.print("Count =");
+          Serial.println(count);
+          st = millis();
+        }
 
-Once started:
+        if (count == 1) {
+          forward();
+        }
 
-* `flag = 1`
-* Robot enters autonomous mode.
+        if (count == 2) {
+          right();
+          delay(150);
+        }
 
----
+        if (count == 3) {
+          forward();
+        }
 
-### 3️⃣ Obstacle Detection
+        if (count == 4) {
+          forward();
+        }
 
-Using ultrasonic sensor:
+        if (count == 5) {
+          right();
+        }
 
-```cpp
-distanceCm = (duration * 0.034) / 2;
-```
+        if (count == 6) {
+          forward();
+        }
 
-* If distance > 10 cm → Continue moving
-* If distance ≤ 10 cm → Stop
-
----
-
-### 4️⃣ Line Following Logic
-
-Using IR sensors:
-
-| Left (A0) | Right (A1) | Action                       |
-| --------- | ---------- | ---------------------------- |
-| 1         | 1          | Forward                      |
-| 1         | 0          | Left                         |
-| 0         | 1          | Right                        |
-| 0         | 0          | Time-based movement sequence |
-
----
-
-### 5️⃣ Time-Based Path Control
-
-If both sensors detect no line:
-
-* Every 1 second → `count++`
-* Robot performs predefined movement sequence:
-
-| Count | Action       |
-| ----- | ------------ |
-| 1     | Forward      |
-| 2     | Right        |
-| 3     | Forward      |
-| 4     | Forward      |
-| 5     | Right        |
-| 6     | Forward      |
-| >6    | Stop & Reset |
-
----
-
-## 🚦 Movement Functions
-
-The robot movement is controlled using:
-
-* `forward()`
-* `backward()`
-* `left()`
-* `right()`
-* `clockwise()`
-* `counterclockwise()`
-* `stopp()`
-
-Each function sets motor driver pins HIGH/LOW accordingly.
-
----
-
-## 🖥️ Serial Output
-
-The Serial Monitor (9600 baud) displays:
-
-* Pulse value from gantry sensor
-* Gantry crossed message
-* Count value during timed movement
-
----
-
-## ▶️ How to Use
-
-1. Connect all hardware as per pin configuration.
-2. Upload the code to Arduino.
-3. Open Serial Monitor (9600 baud).
-4. Send character **`C`** to start the robot.
-5. Robot will:
-
-   * Detect gantries
-   * Follow line
-   * Avoid obstacles
-   * Execute timed path
-
----
-
-## 📌 Notes
-
-* Make sure ultrasonic sensor faces forward.
-* IR sensors must be calibrated for proper line detection.
-* Power supply should be stable to avoid motor glitches.
-* Delay-based turning may require tuning depending on motor speed.
-
----
-
-## 📄 Summary
-
-This project combines:
-
-* Line following
-* Obstacle avoidance
-* Pulse-based gantry detection
-* Time-sequenced navigation
-
-It is suitable for:
-
-* Robotics competitions
-* Smart gantry tracking systems
-* Autonomous navigation experiments
-
----
-
+        if (count > 6) {
+          stopp();
+          flag = 0;
+        }
+      }
+    } else {
+      stopp();
+    }
+  }
+}
